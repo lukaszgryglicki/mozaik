@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <pthread.h>
 
 #define HERE __FILE__, __LINE__
 
@@ -73,6 +74,7 @@ unsigned char* g_img_buf;
 unsigned int** g_img_idx;
 fileinfo* g_file_info;
 int g_rs, g_gs, g_bs, g_rg, g_gg, g_bg;
+pthread_mutex_t *g_mutex;
 double (*rgb_distance)(fileinfo*, unsigned char, unsigned char, unsigned char);
 
 #define CR (char)13
@@ -82,6 +84,28 @@ void panic(char* file, int line, char* why)
 {
 	fprintf(stdout, "PANIC: File %s, Line %d, Description \"%s\"\n", file, line, why);
 	exit(1);
+}
+
+void lck()
+{
+ if (g_mutex) {
+   if (pthread_mutex_lock(g_mutex))
+   {
+     panic(HERE, "failed to lock the mutex\n");
+   }
+   printf("mtx %x locked\n", g_mutex);
+ }
+}
+
+void ulck()
+{
+ if (g_mutex) {
+   if (pthread_mutex_unlock(g_mutex))
+   {
+     panic(HERE, "failed to unlock the mutex\n");
+   }
+   printf("mtx %x unlocked\n", g_mutex);
+ }
 }
 
 void init_bmp(BMPTag* b)
@@ -433,7 +457,7 @@ struct my_error_mgr
 typedef struct my_error_mgr * my_error_ptr;
 static my_error_ptr errptr = NULL;
 
-static void my_error_exit (j_common_ptr cinfo)
+static void my_error_exit(j_common_ptr cinfo)
 {
  my_error_ptr myerr = (my_error_ptr) cinfo->err;
  (*cinfo->err->output_message) (cinfo);
@@ -481,7 +505,6 @@ void free_pixels(unsigned char** pix)
  *pix = NULL;
 }
 
-
 int save_jpeg_file_internal(unsigned char* bits, int x, int y, FILE* outfile)
 {
  struct jpeg_compress_struct cinfo;
@@ -492,12 +515,14 @@ int save_jpeg_file_internal(unsigned char* bits, int x, int y, FILE* outfile)
  pixels = NULL;
 /* args_fprintf(stdout, "x:y=%d:%d\n", x,y);*/
  init_pixels(&pixels, bits, x, y);
+ lck();
  cinfo.err = jpeg_std_error(&jerr.pub);
  jerr.pub.error_exit = my_error_exit;
  errptr = &jerr;
  if (setjmp(jerr.setjmp_buffer))
        {
 	jpeg_destroy_compress(&cinfo);
+  ulck();
 	return ERR_BADJPEG;
        }
  jpeg_create_compress(&cinfo);
@@ -519,6 +544,7 @@ int save_jpeg_file_internal(unsigned char* bits, int x, int y, FILE* outfile)
    }
  jpeg_finish_compress(&cinfo);
  jpeg_destroy_compress(&cinfo);
+ ulck();
  free_pixels(&pixels);
  return 0;
 }
@@ -536,6 +562,7 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
     *x = *y = 0;
     *bits = NULL;
     if (infile == NULL) return ERR_CANNOTREAD;
+    lck();
     cinfo.err = jpeg_std_error(&jerr.pub);
     jerr.pub.error_exit = my_error_exit;
     errptr = &jerr;
@@ -543,6 +570,7 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        {
 	jpeg_destroy_decompress(&cinfo);
 /*	fclose(infile);*/
+  ulck();
 	return ERR_BADJPEG;
        }
     jpeg_create_decompress(&cinfo);
@@ -552,6 +580,7 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        {
 	jpeg_destroy_decompress(&cinfo);
 /*	fclose(infile);*/
+  ulck();
 	return ERR_GRAYJPEG;
        }
     else cinfo.quantize_colors = FALSE;
@@ -560,6 +589,7 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        {
 	jpeg_destroy_decompress(&cinfo);
 /*	fclose(infile);*/
+  ulck();
 	return ERR_256CJPEG;
        }
     *x = cinfo.output_width;
@@ -577,6 +607,7 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        }
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
+    ulck();
     return 0;
 }
 
@@ -909,33 +940,22 @@ void process_filelist(char** fnames, int num)
  save_dbfile(num);
 }
 
-void process_filelist_mt(char** fnames, int num)
+void* thread_routine(void* arg)
 {
- int i, p1, p2, p3, i1, i2, i3, pp, p;
- g_file_info = (fileinfo*)malloc(sizeof(fileinfo) * num);
- if (!g_file_info) panic(HERE, "malloc fileinfo");
- p1 = fork();
- p2 = fork();
- p3 = fork();
- i1 = !!p1;
- i2 = !!p2;
- i3 = !!p3;
- pp = (i1<<2) + (i2<<1) + i3;
- p = (pp == 7);
- printf("fork: (%d,%d,%d) -> (%d,%d,%d) -> (%d,%d)\n", p1, p2, p3, i1, i2, i3, pp, p);
- for (i=0;i<num;i++) 
+  char** fnames;
+  int ti, i, num, nthr;
+  memcpy((void*)&fnames, arg, sizeof(char**));
+  memcpy((void*)&ti, arg+sizeof(void*), sizeof(int));
+  memcpy((void*)&num, arg+sizeof(void*)+sizeof(int), sizeof(int));
+  memcpy((void*)&nthr, arg+sizeof(void*)+2*sizeof(int), sizeof(int));
+  printf("Thread %x, %d/%d, %d\n", fnames, ti, nthr, num);
+  for (i=0;i<num;i++)
 	{
-	  if (p && (i%8) != pp)
-	  {
-	      // printf("Parent %d skips: %d\n", pp, i);
-	      continue;
-	  }
-	  else if (!p && (i%8) != pp)
-	  {
-	      // printf("Child %d skips: %d\n", pp, i);
-	      continue;
-	  }
-
+    if (i%nthr != ti)
+    {
+      // printf("index %d skipped for %d thread\n", i, ti);
+      continue;
+    }
 	  init_fileinfo(&g_file_info[i]);
 	  g_file_info[i].fname = (char*)malloc((sizeof(char) * strlen(fnames[i])) + 1);
 	  strcpy(g_file_info[i].fname, fnames[i]);
@@ -943,25 +963,54 @@ void process_filelist_mt(char** fnames, int num)
 	  free((void*)fnames[i]);
 	  fnames[i] = NULL;
 	  if (!process_file(&g_file_info[i], num))
-		{
-			printf("Failed processing: %s\n", g_file_info[i].fname);
-		}
-	}
+	  {
+		  printf("Failed processing: %s\n", g_file_info[i].fname);
+	  }
+  }
+}
+
+void process_filelist_mt(char** fnames, int num, int nthr)
+{
+ int i;
+ pthread_t* threads;
+ void** args;
+ g_mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
+ if (pthread_mutex_init(g_mutex, NULL))
+ {
+   panic(HERE, "failed to create threads mutex\n");
+ }
+ printf("thread mutex %x created\n", g_mutex);
+ threads = (pthread_t*)malloc(nthr*sizeof(pthread_t));
+ args = (void**)malloc(nthr*sizeof(void*));
+ g_file_info = (fileinfo*)malloc(sizeof(fileinfo) * num);
+ if (!g_file_info) panic(HERE, "malloc fileinfo");
+ for (i=0;i<nthr;i++)
+ {
+   args[i] = (void*)malloc(sizeof(char**)+3*sizeof(int));
+   memcpy(args[i],(void*)(&fnames), sizeof(char**));
+   memcpy(args[i]+sizeof(char**),(void*)(&i), sizeof(int));
+   memcpy(args[i]+sizeof(char**)+sizeof(int),(void*)(&num), sizeof(int));
+   memcpy(args[i]+sizeof(char**)+2*sizeof(int),(void*)(&nthr), sizeof(int));
+   if (pthread_create(&threads[i], NULL, &thread_routine, args[i]))
+   {
+     panic(HERE, "failed to create a thread\n");
+   }
+ }
+ for (i=0;i<nthr;i++)
+ {
+   if (pthread_join(threads[i], NULL))
+   {
+     panic(HERE, "failed to join a thread\n");
+   }
+   printf("joined thread %d\n", i);
+ }
+ for (i=0;i<nthr;i++)
+ {
+   free((void*)args[i]);
+ }
+ free((void*)threads);
+ free((void*)args);
  printf("Zapis konfiguracji bazy w pliku %s\n", g_dbout_file);
- if (p) 
- {	/* parent wait for child to finish */
-     printf("Parent waits for children\n");
-     for (i=0;i<8;i++) {
-       printf("Parent waits for child %d\n", i+1);
-       wait(NULL);
-     }
-     printf("Parent waited OK\n");
- }
- else
- {   /* children finishes */  
-     printf("Child finishes\n");
-     exit(0);
- }
  save_dbfile(num);
 }
 
@@ -973,7 +1022,7 @@ void generate_dbfile()
  numfiles = 0;
  read_filelist(&fnames, &numfiles);
  // process_filelist(fnames, numfiles);
- process_filelist_mt(fnames, numfiles);
+ process_filelist_mt(fnames, numfiles, 8);
  free((void*)fnames);
 }
 
@@ -1934,6 +1983,7 @@ void parse_options(int lb, char** par)
  g_rs = g_rg = 0;
  g_gs = g_gg = 1;
  g_bs = g_bg = 2;
+ g_mutex = NULL;
  rgb_distance = rgb_distance_nearest_rgb;
 
  if (get_option(lb, par, "help", &optval) == 1)  

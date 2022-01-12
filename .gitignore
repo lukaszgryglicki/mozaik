@@ -61,3 +61,4 @@ dkms.conf
 *.m1
 *.lst
 *.txt
+*.swp
