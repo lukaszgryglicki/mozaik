@@ -925,15 +925,15 @@ void process_filelist_mt(char** fnames, int num)
  printf("fork: (%d,%d,%d) -> (%d,%d,%d) -> (%d,%d)\n", p1, p2, p3, i1, i2, i3, pp, p);
  for (i=0;i<num;i++) 
 	{
-	  if (p && (i%8) == pp) 
+	  if (p && (i%8) != pp)
 	  {
-	      printf("Parent %d skips: %d\n", pp, i);
-	      continue; /* parent skips 1,3,5... */
+	      // printf("Parent %d skips: %d\n", pp, i);
+	      continue;
 	  }
-	  else if (!p && (i%8) == pp) 
+	  else if (!p && (i%8) != pp)
 	  {
-	      printf("Child %d skips: %d\n", pp, i);
-	      continue; /* child skips 0,2,4 */
+	      // printf("Child %d skips: %d\n", pp, i);
+	      continue;
 	  }
 
 	  init_fileinfo(&g_file_info[i]);
