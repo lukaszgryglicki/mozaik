@@ -58,7 +58,7 @@ dkms.conf
 *.dat
 *.32
 *.64
-*.m1
+# *.m1
 *.lst
 *.txt
 *.swp
