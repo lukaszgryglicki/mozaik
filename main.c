@@ -515,14 +515,12 @@ int save_jpeg_file_internal(unsigned char* bits, int x, int y, FILE* outfile)
  pixels = NULL;
 /* args_fprintf(stdout, "x:y=%d:%d\n", x,y);*/
  init_pixels(&pixels, bits, x, y);
- lck();
  cinfo.err = jpeg_std_error(&jerr.pub);
  jerr.pub.error_exit = my_error_exit;
  errptr = &jerr;
  if (setjmp(jerr.setjmp_buffer))
        {
 	jpeg_destroy_compress(&cinfo);
-  ulck();
 	return ERR_BADJPEG;
        }
  jpeg_create_compress(&cinfo);
@@ -544,7 +542,6 @@ int save_jpeg_file_internal(unsigned char* bits, int x, int y, FILE* outfile)
    }
  jpeg_finish_compress(&cinfo);
  jpeg_destroy_compress(&cinfo);
- ulck();
  free_pixels(&pixels);
  return 0;
 }
@@ -562,7 +559,6 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
     *x = *y = 0;
     *bits = NULL;
     if (infile == NULL) return ERR_CANNOTREAD;
-    lck();
     cinfo.err = jpeg_std_error(&jerr.pub);
     jerr.pub.error_exit = my_error_exit;
     errptr = &jerr;
@@ -570,7 +566,6 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        {
 	jpeg_destroy_decompress(&cinfo);
 /*	fclose(infile);*/
-  ulck();
 	return ERR_BADJPEG;
        }
     jpeg_create_decompress(&cinfo);
@@ -580,7 +575,6 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        {
 	jpeg_destroy_decompress(&cinfo);
 /*	fclose(infile);*/
-  ulck();
 	return ERR_GRAYJPEG;
        }
     else cinfo.quantize_colors = FALSE;
@@ -589,7 +583,6 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        {
 	jpeg_destroy_decompress(&cinfo);
 /*	fclose(infile);*/
-  ulck();
 	return ERR_256CJPEG;
        }
     *x = cinfo.output_width;
@@ -607,7 +600,6 @@ int load_jpeg_file_internal(unsigned long*** bits, int* x, int* y, FILE* infile)
        }
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
-    ulck();
     return 0;
 }
 
@@ -662,8 +654,9 @@ int load_jpeg_file(fileinfo* fi, FILE* plik)
  fseek(plik, 0, SEEK_SET);
  tex_data = NULL;
  pixels = NULL;
+ //lck();
  err = load_jpeg_file_internal(&tex_data, &tex_x, &tex_y, plik);
- fclose(plik);
+ //ulck();
  if (err) 
  {
  	for (i=0;i<tex_y;i++)
@@ -678,7 +671,9 @@ int load_jpeg_file(fileinfo* fi, FILE* plik)
  fi->x = tex_x;
  fi->y = tex_y;
  pixels = (unsigned char*)malloc(3*tex_x*tex_y*sizeof(unsigned char));
+ //lck();
  rcode = translate_jpeg_to_uchar_format(tex_data, fi, pixels);
+ //ulck();
  for (i=0;i<tex_y;i++)
    {
     if (tex_data[i]) free((void*)(tex_data[i]));
@@ -884,7 +879,7 @@ int process_file(fileinfo* fi, int num)
 	 return 0;
  }
  rcode = 0;
- if ((b != 'B' || m != 'M') && !skip_jpegin)  rcode = load_jpeg_file(fi, plik);
+ if ((b != 'B' || m != 'M') && !skip_jpegin) rcode = load_jpeg_file(fi, plik);
  else if (!skip_bmpin) rcode = load_bmp_file(fi, bm_handle, plik);
  fclose(plik);
  return rcode;
@@ -1082,9 +1077,6 @@ void read_dbfile(fileinfo** fi)
   sprintf((*fi)[i].fname, "%s/%d", g_snapdir, (*fi)[i].i);
   (*fi)[i].processed = 0;
 /*  printf("Read snapshot: %s\n", (*fi)[i].fname);*/
-
-
-
  }
  fclose(f);
 }
