@@ -394,35 +394,35 @@ int make_snapshot(fileinfo* fi, unsigned char* pixels)
     return k;
 }
 
-int load_bmp_file(fileinfo* fi, BMPTag bm_handle, FILE* plik)
+int load_bmp_file(fileinfo* fi, BMPTag bm_handle, FILE* afile)
 {
     unsigned char* pixels;
     int i,j;
     unsigned char r,g,b;
     double dr, dg, db, di;
 
-    fread(&bm_handle.fsize,4,1,plik);
-    fread(&bm_handle.dummy,4,1,plik);
-    fread(&bm_handle.offset,4,1,plik);
-    fread(&bm_handle.dummy2,4,1,plik);
-    fread(&bm_handle.bm_x,4,1,plik);
-    fread(&bm_handle.bm_y,4,1,plik);
-    fread(&bm_handle.planes,2,1,plik);
-    fread(&bm_handle.bpp,2,1,plik);
+    fread(&bm_handle.fsize,4,1,afile);
+    fread(&bm_handle.dummy,4,1,afile);
+    fread(&bm_handle.offset,4,1,afile);
+    fread(&bm_handle.dummy2,4,1,afile);
+    fread(&bm_handle.bm_x,4,1,afile);
+    fread(&bm_handle.bm_y,4,1,afile);
+    fread(&bm_handle.planes,2,1,afile);
+    fread(&bm_handle.bpp,2,1,afile);
     pixels = NULL;
     if (bm_handle.bpp != 24)
     {
         printf("Only 24BPP BMPs suported.\n");
         return 0;
     }
-    fseek(plik,bm_handle.offset,SEEK_SET);
+    fseek(afile,bm_handle.offset,SEEK_SET);
     pixels = (unsigned char*)malloc(3*bm_handle.bm_y*bm_handle.bm_x*sizeof(unsigned char));
     fi->x = bm_handle.bm_x;
     fi->y = bm_handle.bm_y;
     di = dr = dg = db = 0.0;
     for (i=0;i<bm_handle.bm_y;i++)  for (j=0;j<bm_handle.bm_x;j++)
     {
-        fscanf(plik,"%c%c%c", &b,&g,&r);
+        fscanf(afile,"%c%c%c", &b,&g,&r);
         di += 1.;
         dr += (double)r;
         dg += (double)g;
@@ -645,17 +645,17 @@ int translate_jpeg_to_uchar_format(unsigned long** bits, fileinfo* fi, unsigned 
 }
 
 
-int load_jpeg_file(fileinfo* fi, FILE* plik)
+int load_jpeg_file(fileinfo* fi, FILE* afile)
 {
     unsigned long** tex_data;
     unsigned char* pixels;
     int err,i, rcode;
     int tex_x, tex_y;
-    fseek(plik, 0, SEEK_SET);
+    fseek(afile, 0, SEEK_SET);
     tex_data = NULL;
     pixels = NULL;
     /* lck(); */
-    err = load_jpeg_file_internal(&tex_data, &tex_x, &tex_y, plik);
+    err = load_jpeg_file_internal(&tex_data, &tex_x, &tex_y, afile);
     /* ulck(); */
     if (err)
     {
@@ -689,7 +689,7 @@ int load_jpeg_file(fileinfo* fi, FILE* plik)
 }
 
 #else
-int load_jpeg_file(fileinfo* fi, FILE* plik)
+int load_jpeg_file(fileinfo* fi, FILE* afile)
 {
     printf("JPEG usupported on MSVC\n");
     return 0;
@@ -700,7 +700,7 @@ int load_jpeg_file(fileinfo* fi, FILE* plik)
 int write_snapshot(fileinfo* fi, unsigned char* pixels)
 {
     BMPTag bm_handle;
-    FILE* plik;
+    FILE* afile;
     char out_f[1024];
 #ifdef USE_JPEG
     char jpeg_out[1024];
@@ -713,33 +713,33 @@ int write_snapshot(fileinfo* fi, unsigned char* pixels)
     if (!skip_bmpout)
     {
         init_bmp(&bm_handle);
-        plik = fopen(out_f, "wb");
-        if (!plik)
+        afile = fopen(out_f, "wb");
+        if (!afile)
         {
             printf("Error writing snapshot: %s\n", out_f);
             return 0;
         }
-        fprintf(plik,"%c%c", 'B','M');
+        fprintf(afile,"%c%c", 'B','M');
 
         bm_handle.bm_y = fi->snap_y;
         bm_handle.bm_x = fi->snap_x;
         bm_handle.fsize = sizeof(BMPTag)+(bm_handle.bm_y*bm_handle.bm_x*3);
-        fwrite(&bm_handle.fsize,4,1,plik);
-        fwrite(&bm_handle.dummy,4,1,plik);
+        fwrite(&bm_handle.fsize,4,1,afile);
+        fwrite(&bm_handle.dummy,4,1,afile);
         bm_handle.offset=sizeof(BMPTag);
         bm_handle.planes=1;
         bm_handle.bpp=24;
         bm_handle.nbytes = fi->snap_x * fi->snap_y * 3;
-        fwrite(&bm_handle.offset,4,1,plik);
-        fwrite(&bm_handle.dummy2,4,1,plik);
-        fwrite(&bm_handle.bm_x,4,1,plik);
-        fwrite(&bm_handle.bm_y,4,1,plik);
-        fwrite(&bm_handle.planes,2,1,plik);
-        fwrite(&bm_handle.bpp,2,1,plik);
-        fwrite(&bm_handle.compress,4,1,plik);
-        fwrite(&bm_handle.nbytes,4,1,plik);
-        for (i=0;i<4;i++)  fwrite(&bm_handle.no_matter[i],4,1,plik);
-        fseek(plik,bm_handle.offset,SEEK_SET);
+        fwrite(&bm_handle.offset,4,1,afile);
+        fwrite(&bm_handle.dummy2,4,1,afile);
+        fwrite(&bm_handle.bm_x,4,1,afile);
+        fwrite(&bm_handle.bm_y,4,1,afile);
+        fwrite(&bm_handle.planes,2,1,afile);
+        fwrite(&bm_handle.bpp,2,1,afile);
+        fwrite(&bm_handle.compress,4,1,afile);
+        fwrite(&bm_handle.nbytes,4,1,afile);
+        for (i=0;i<4;i++)  fwrite(&bm_handle.no_matter[i],4,1,afile);
+        fseek(afile,bm_handle.offset,SEEK_SET);
         for (i=0;i<fi->snap_y;i++)  for (j=0;j<fi->snap_x;j++)
         {
             get_color_uchar(pixels, fi->snap_y, j, i, &r, &g, &b);
@@ -749,9 +749,9 @@ int write_snapshot(fileinfo* fi, unsigned char* pixels)
                printf("HA!\n");
                }
                */
-            fprintf(plik,"%c%c%c", b, g, r);
+            fprintf(afile,"%c%c%c", b, g, r);
         }
-        fclose(plik);
+        fclose(afile);
         printf("Snapshot bitmap: %s written.\n", out_f);
     }
     strcpy(tmp, out_f);
@@ -771,14 +771,14 @@ int write_snapshot(fileinfo* fi, unsigned char* pixels)
         {
             strcat(jpeg_out, ".jpeg");
         }
-        plik = fopen(jpeg_out, "wb");
-        if (!plik)
+        afile = fopen(jpeg_out, "wb");
+        if (!afile)
         {
             printf("Cannot write to: %s\n", jpeg_out);
             return 0;
         }
-        save_jpeg_file_internal(pixels, fi->snap_x, fi->snap_y, plik);
-        fclose(plik);
+        save_jpeg_file_internal(pixels, fi->snap_x, fi->snap_y, afile);
+        fclose(afile);
         printf("JPEG: %s written.\n", jpeg_out);
     }
 #endif
@@ -788,7 +788,7 @@ int write_snapshot(fileinfo* fi, unsigned char* pixels)
 int write_snapshot_pix(char* fn, unsigned int x, unsigned int y, unsigned char* pixels)
 {
     BMPTag bm_handle;
-    FILE* plik;
+    FILE* afile;
     char out_f[1024];
 #ifdef USE_JPEG
     char jpeg_out[1024];
@@ -801,39 +801,39 @@ int write_snapshot_pix(char* fn, unsigned int x, unsigned int y, unsigned char* 
     if (!skip_bmpout)
     {
         init_bmp(&bm_handle);
-        plik = fopen(out_f, "wb");
-        if (!plik)
+        afile = fopen(out_f, "wb");
+        if (!afile)
         {
             printf("Error writing snapshot: %s\n", out_f);
             return 0;
         }
-        fprintf(plik,"%c%c", 'B','M');
+        fprintf(afile,"%c%c", 'B','M');
 
         bm_handle.bm_y = y;
         bm_handle.bm_x = x;
         bm_handle.fsize = sizeof(BMPTag)+(bm_handle.bm_y*bm_handle.bm_x*3);
-        fwrite(&bm_handle.fsize,4,1,plik);
-        fwrite(&bm_handle.dummy,4,1,plik);
+        fwrite(&bm_handle.fsize,4,1,afile);
+        fwrite(&bm_handle.dummy,4,1,afile);
         bm_handle.offset=sizeof(BMPTag);
         bm_handle.planes=1;
         bm_handle.bpp=24;
         bm_handle.nbytes = x * y * 3;
-        fwrite(&bm_handle.offset,4,1,plik);
-        fwrite(&bm_handle.dummy2,4,1,plik);
-        fwrite(&bm_handle.bm_x,4,1,plik);
-        fwrite(&bm_handle.bm_y,4,1,plik);
-        fwrite(&bm_handle.planes,2,1,plik);
-        fwrite(&bm_handle.bpp,2,1,plik);
-        fwrite(&bm_handle.compress,4,1,plik);
-        fwrite(&bm_handle.nbytes,4,1,plik);
-        for (i=0;i<4;i++)  fwrite(&bm_handle.no_matter[i],4,1,plik);
-        fseek(plik,bm_handle.offset,SEEK_SET);
+        fwrite(&bm_handle.offset,4,1,afile);
+        fwrite(&bm_handle.dummy2,4,1,afile);
+        fwrite(&bm_handle.bm_x,4,1,afile);
+        fwrite(&bm_handle.bm_y,4,1,afile);
+        fwrite(&bm_handle.planes,2,1,afile);
+        fwrite(&bm_handle.bpp,2,1,afile);
+        fwrite(&bm_handle.compress,4,1,afile);
+        fwrite(&bm_handle.nbytes,4,1,afile);
+        for (i=0;i<4;i++)  fwrite(&bm_handle.no_matter[i],4,1,afile);
+        fseek(afile,bm_handle.offset,SEEK_SET);
         for (i=0;i<y;i++)  for (j=0;j<x;j++)
         {
             get_color_uchar(pixels, y, j, i, &r, &g, &b);
-            fprintf(plik,"%c%c%c", b, g, r);
+            fprintf(afile,"%c%c%c", b, g, r);
         }
-        fclose(plik);
+        fclose(afile);
         printf("Snapshot bitmap: %s written.\n", out_f);
     }
 
@@ -842,14 +842,14 @@ int write_snapshot_pix(char* fn, unsigned int x, unsigned int y, unsigned char* 
     {
         strcpy(jpeg_out, fn);
         strcat(jpeg_out, ".jpeg");
-        plik = fopen(jpeg_out, "wb");
-        if (!plik)
+        afile = fopen(jpeg_out, "wb");
+        if (!afile)
         {
             printf("Cannot write to: %s\n", jpeg_out);
             return 0;
         }
-        save_jpeg_file_internal(pixels, x, y, plik);
-        fclose(plik);
+        save_jpeg_file_internal(pixels, x, y, afile);
+        fclose(afile);
         printf("JPEG: %s written.\n", jpeg_out);
     }
 #endif
@@ -859,29 +859,29 @@ int write_snapshot_pix(char* fn, unsigned int x, unsigned int y, unsigned char* 
 int process_file(fileinfo* fi, int num)
 {
     BMPTag bm_handle;
-    FILE* plik;
+    FILE* afile;
     int i, rcode;
     char b, m;
-    plik = NULL;
+    afile = NULL;
     init_bmp(&bm_handle);
     printf("Processing file (%d/%d): \"%s\"\n", fi->i, num, fi->fname);
 
-    plik = fopen(fi->fname, "rb");
-    if (!plik)
+    afile = fopen(fi->fname, "rb");
+    if (!afile)
     {
         printf("Cannot open file: %s\n", fi->fname);
         return 0;
     }
-    i = fscanf(plik,"%c%c",&b,&m);
+    i = fscanf(afile,"%c%c",&b,&m);
     if (i != 2)
     {
         printf("File %s is truncated, skipping\n", fi->fname);
         return 0;
     }
     rcode = 0;
-    if ((b != 'B' || m != 'M') && !skip_jpegin) rcode = load_jpeg_file(fi, plik);
-    else if (!skip_bmpin) rcode = load_bmp_file(fi, bm_handle, plik);
-    fclose(plik);
+    if ((b != 'B' || m != 'M') && !skip_jpegin) rcode = load_jpeg_file(fi, afile);
+    else if (!skip_bmpin) rcode = load_bmp_file(fi, bm_handle, afile);
+    fclose(afile);
     return rcode;
 }
 
@@ -893,7 +893,7 @@ int save_dbfile(int num)
     out = fopen(g_dbout_file, "w");
     if (!out)
     {
-        printf("Blad zapisu pliku bazy: %s\n", g_dbout_file);
+        printf("Error writing database file: %s\n", g_dbout_file);
         return 0;
     }
 
@@ -931,7 +931,7 @@ void process_filelist(char** fnames, int num)
             printf("Failed processing: %s\n", g_file_info[i].fname);
         }
     }
-    printf("Zapis konfiguracji bazy w pliku %s\n", g_dbout_file);
+    printf("Saving database to file %s\n", g_dbout_file);
     save_dbfile(num);
 }
 
@@ -1006,7 +1006,7 @@ void process_filelist_mt(char** fnames, int num, int nthr)
     }
     free((void*)threads);
     free((void*)args);
-    printf("Zapis konfiguracji bazy w pliku %s\n", g_dbout_file);
+    printf("Save database to file %s\n", g_dbout_file);
     save_dbfile(num);
 }
 
@@ -1082,31 +1082,31 @@ void read_dbfile(fileinfo** fi)
     fclose(f);
 }
 
-int load_bmp_pix(BMPTag bm_handle, FILE* plik, unsigned char** _pixels, unsigned int* _x, unsigned int* _y)
+int load_bmp_pix(BMPTag bm_handle, FILE* afile, unsigned char** _pixels, unsigned int* _x, unsigned int* _y)
 {
     unsigned char* pixels;
     int i,j;
     unsigned char r,g,b;
 
-    fread(&bm_handle.fsize,4,1,plik);
-    fread(&bm_handle.dummy,4,1,plik);
-    fread(&bm_handle.offset,4,1,plik);
-    fread(&bm_handle.dummy2,4,1,plik);
-    fread(&bm_handle.bm_x,4,1,plik);
-    fread(&bm_handle.bm_y,4,1,plik);
-    fread(&bm_handle.planes,2,1,plik);
-    fread(&bm_handle.bpp,2,1,plik);
+    fread(&bm_handle.fsize,4,1,afile);
+    fread(&bm_handle.dummy,4,1,afile);
+    fread(&bm_handle.offset,4,1,afile);
+    fread(&bm_handle.dummy2,4,1,afile);
+    fread(&bm_handle.bm_x,4,1,afile);
+    fread(&bm_handle.bm_y,4,1,afile);
+    fread(&bm_handle.planes,2,1,afile);
+    fread(&bm_handle.bpp,2,1,afile);
     pixels = NULL;
     if (bm_handle.bpp != 24)
     {
         printf("Only 24BPP BMPs suported.\n");
         return 0;
     }
-    fseek(plik,bm_handle.offset,SEEK_SET);
+    fseek(afile,bm_handle.offset,SEEK_SET);
     pixels = (unsigned char*)malloc(3*bm_handle.bm_y*bm_handle.bm_x*sizeof(unsigned char));
     for (i=0;i<bm_handle.bm_y;i++)  for (j=0;j<bm_handle.bm_x;j++)
     {
-        fscanf(plik,"%c%c%c", &b,&g,&r);
+        fscanf(afile,"%c%c%c", &b,&g,&r);
         set_color_uchar(pixels, bm_handle.bm_y, j, i, r, g, b);
     }
     *_pixels = pixels;
@@ -1135,18 +1135,18 @@ int translate_jpeg_to_uchar_format_pix(unsigned long** bits, unsigned int x, uns
 }
 #endif
 
-int load_jpeg_pix(FILE* plik, unsigned char** _pixels, unsigned int* _x, unsigned int* _y)
+int load_jpeg_pix(FILE* afile, unsigned char** _pixels, unsigned int* _x, unsigned int* _y)
 {
 #ifdef USE_JPEG
     unsigned long** tex_data;
     unsigned char* pixels;
     int err,i, rcode;
     int tex_x, tex_y;
-    fseek(plik, 0, SEEK_SET);
+    fseek(afile, 0, SEEK_SET);
     tex_data = NULL;
     pixels = NULL;
-    err = load_jpeg_file_internal(&tex_data, &tex_x, &tex_y, plik);
-    fclose(plik);
+    err = load_jpeg_file_internal(&tex_data, &tex_x, &tex_y, afile);
+    fclose(afile);
     if (err)
     {
         for (i=0;i<tex_y;i++)
@@ -1262,7 +1262,7 @@ int read_imgfile()
 {
     BMPTag bm_handle;
     unsigned char* pixels;
-    FILE* plik;
+    FILE* afile;
     int i, rcode;
     unsigned char b, m;
     init_bmp(&bm_handle);
@@ -1272,25 +1272,25 @@ int read_imgfile()
     g_img_buf = NULL;
     g_img_idx = NULL;
     pixels = NULL;
-    plik = fopen(g_imgin_file, "rb");
-    if (!plik)
+    afile = fopen(g_imgin_file, "rb");
+    if (!afile)
     {
         printf("Cannot open file: %s\n", g_imgin_file);
         return 0;
     }
-    i = fscanf(plik,"%c%c",&b,&m);
+    i = fscanf(afile,"%c%c",&b,&m);
     if (i != 2)
     {
         printf("File %s is truncated, skipping\n", g_imgin_file);
         return 0;
     }
     rcode = 0;
-    if ((b != 'B' || m != 'M') && !skip_jpegin) rcode = load_jpeg_pix(plik, &pixels, &g_img_x, &g_img_y);
-    else if (!skip_bmpin) rcode = load_bmp_pix(bm_handle, plik, &pixels, &g_img_x, &g_img_y);
+    if ((b != 'B' || m != 'M') && !skip_jpegin) rcode = load_jpeg_pix(afile, &pixels, &g_img_x, &g_img_y);
+    else if (!skip_bmpin) rcode = load_bmp_pix(bm_handle, afile, &pixels, &g_img_x, &g_img_y);
     if (!rcode) printf("Error loading img file.\n");
     rcode = make_scale(pixels);
     if (!rcode) printf("Error rescaling img.\n");
-    fclose(plik);
+    fclose(afile);
     free((void*)pixels);
     return rcode;
 }
@@ -1771,7 +1771,7 @@ int make_scale_pix(unsigned char* pixels, unsigned int curr_x, int unsigned curr
 int prefetch_pixmap(fileinfo* fi)
 {
     BMPTag bm_handle;
-    FILE* plik;
+    FILE* afile;
     char fname[1024];
     int i, rcode;
     unsigned char b, m;
@@ -1782,19 +1782,19 @@ int prefetch_pixmap(fileinfo* fi)
     newpixels = NULL;
     init_bmp(&bm_handle);
     sprintf(fname, "%s/%d.bmp", g_snapdir, fi->i);
-    if (skip_bmpin) plik = NULL;
-    else plik = fopen(fname, "rb");
-    if (!plik)
+    if (skip_bmpin) afile = NULL;
+    else afile = fopen(fname, "rb");
+    if (!afile)
     {
         sprintf(fname, "%s/%d.jpeg", g_snapdir, fi->i);
-        if (skip_jpegin) plik = NULL;
-        else plik = fopen(fname, "rb");
-        if (!plik)
+        if (skip_jpegin) afile = NULL;
+        else afile = fopen(fname, "rb");
+        if (!afile)
         {
             printf("Error opening BMP then JPG: %s\n", fname);
             return 0;
         }
-        rcode = load_jpeg_pix(plik, &fi->pixels, &test_x, &test_y);
+        rcode = load_jpeg_pix(afile, &fi->pixels, &test_x, &test_y);
         /*	   printf("rcode = %d\n", rcode);*/
         if (test_x != (unsigned int)g_snap_x || test_y != (unsigned int)g_snap_y)
         {
@@ -1804,20 +1804,20 @@ int prefetch_pixmap(fileinfo* fi)
             fi->pixels = newpixels;
             return 1;
         }
-        fclose(plik);
+        fclose(afile);
         return rcode;
     }
-    i = fscanf(plik,"%c%c",&b,&m);
+    i = fscanf(afile,"%c%c",&b,&m);
     if (i != 2)
     {
         printf("File %s is truncated, skipping\n", g_imgin_file);
         return 0;
     }
     rcode = 0;
-    if ((b != 'B' || m != 'M') && !skip_jpegin) rcode = load_jpeg_pix(plik, &fi->pixels, &test_x, &test_y);
-    else if (!skip_bmpin) rcode = load_bmp_pix(bm_handle, plik, &fi->pixels, &test_x, &test_y);
+    if ((b != 'B' || m != 'M') && !skip_jpegin) rcode = load_jpeg_pix(afile, &fi->pixels, &test_x, &test_y);
+    else if (!skip_bmpin) rcode = load_bmp_pix(bm_handle, afile, &fi->pixels, &test_x, &test_y);
     if (!rcode) printf("Error loading img file.\n");
-    fclose(plik);
+    fclose(afile);
     if (test_x != (unsigned int)g_snap_x || test_y != (unsigned int)g_snap_y)
     {
         /*		printf("Size mismatch: (%u, %d) != (%ld, %ld)\n", test_x, test_y, g_snap_x, g_snap_y);*/
