@@ -54,7 +54,7 @@ int main(int lb, char** par) {
     }
     fscanf(idb, "PROCESSED=%d\n", &nproc);
     if (n < 0) {
-      n = (nproc + 1) * 0x10;
+      n = (nproc + 0x10) * 0x10;
       items = (item*)malloc(n * sizeof(item));
     }
     fscanf(idb, "SNAP=%d,%d\n", &snap_x, &snap_y);
