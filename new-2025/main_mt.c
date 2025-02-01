@@ -1504,6 +1504,7 @@ int prefetch_pixmap(fileinfo* fi)
 		   make_scale_pix(fi->pixels, test_x, test_y, &newpixels);
 		   free((void*)fi->pixels);
 		   fi->pixels = newpixels;
+	      fclose(plik);
 		   return 1;
 	   }
 	   fclose(plik);
@@ -1538,6 +1539,7 @@ int prefetch_pixmaps(fileinfo* fi)
  printf("Prefetching pixmaps...\n");
  for (i=0;i<g_num;i++)
  {
+   if (fi[i].missing) continue;
 	 if (fi[i].n_used > 0) 
 	 {
 		 npf ++;
