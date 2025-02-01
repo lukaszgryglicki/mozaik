@@ -11,7 +11,7 @@ int by_idx(const void *p1, const void *p2) {
 }
 
 int main(int lb, char** par) {
-  int i, j, k, nproc, snap_x, snap_y, snap_x1, snap_y1, x, y, r, g, b, idx, n;
+  int i, j, k, nproc, snap_x, snap_y, snap_x1, snap_y1, x, y, r, g, b, idx, n, max_idx;
   char *ofn, *ifn, *snapdir, *snapdir1;
   FILE *db, *idb;
   item *items;
@@ -34,7 +34,7 @@ int main(int lb, char** par) {
   snapdir = (char*)malloc(0x100*sizeof(char));
   snapdir1 = (char*)malloc(0x100*sizeof(char));
   strcpy(snapdir1, "");
-  snap_x1 = snap_y1 = n = -1;
+  snap_x1 = snap_y1 = n = max_idx = -1;
   items = NULL;
   k = 0;
 
@@ -82,12 +82,13 @@ int main(int lb, char** par) {
       it.b = b;
       memcpy((void*)&(items[k]), (void*)&it, sizeof(item));
       k ++;
+      if (idx > max_idx) max_idx = idx;
     }
   }
   qsort((void*)items, k, sizeof(item), by_idx);
   /* printf("all items: %d\n", k); */
   fprintf(db, "SNAPDIR=%s\n", snapdir1);
-  fprintf(db, "PROCESSED=%d\n", k);
+  fprintf(db, "PROCESSED=%d\n", max_idx + 1);
   fprintf(db, "SNAP=%d,%d\n", snap_x1, snap_y1);
   for (i=0;i<k;i++)
   {

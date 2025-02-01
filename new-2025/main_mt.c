@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <math.h>
 #include <sys/wait.h>
@@ -30,7 +31,7 @@ typedef struct _fileinfo
 	unsigned int r, g, b;
 	unsigned int i;
 	unsigned int snap_x, snap_y;
-	int n_used;
+	int n_used, missing;
 	unsigned char* pixels;
 } fileinfo;
 
@@ -287,10 +288,11 @@ void init_fileinfo(fileinfo* fi)
 	fi->snap_x = g_snap_x;
 	fi->snap_y = g_snap_y;
 	fi->n_used = 0;
+  fi->missing = 0;
 	fi->pixels = NULL;
 }
 
-void set_color_uchar(unsigned char* s, int Y, int x, int y, unsigned char r, unsigned char g, unsigned char b)
+void set_color_uchar(unsigned char* s, uint64_t Y, uint64_t x, uint64_t y, unsigned char r, unsigned char g, unsigned char b)
 {
  s[3*(Y * x + y)] = 0;
  s[3*(Y * x + y) + 1] = 0;
@@ -300,7 +302,7 @@ void set_color_uchar(unsigned char* s, int Y, int x, int y, unsigned char r, uns
  s[3*(Y * x + y) + g_bs] = b;
 }
 
-void get_color_uchar(unsigned char* s, int Y, int x, int y, unsigned char* r, unsigned char* g, unsigned char* b)
+void get_color_uchar(unsigned char* s, uint64_t Y, uint64_t x, uint64_t y, unsigned char* r, unsigned char* g, unsigned char* b)
 {
  *r = s[3*(Y * x + y) + g_rg];
  *g = s[3*(Y * x + y) + g_gg];
@@ -322,7 +324,7 @@ int make_snapshot(fileinfo* fi, unsigned char* pixels)
 
 	nx = fi->snap_x;
 	ny = fi->snap_y;
-        spix = (unsigned char*)malloc(3*ny*nx*sizeof(unsigned char));
+        spix = (unsigned char*)malloc(3*(uint64_t)ny*(uint64_t)nx*sizeof(unsigned char));
 	
 	for (i=0;i<ny;i++) 
 	{
@@ -391,7 +393,7 @@ int load_bmp_file(fileinfo* fi, BMPTag bm_handle, FILE* plik)
 	 return 0;
  }
  fseek(plik,bm_handle.offset,SEEK_SET);
- pixels = (unsigned char*)malloc(3*bm_handle.bm_y*bm_handle.bm_x*sizeof(unsigned char));
+ pixels = (unsigned char*)malloc(3*(uint64_t)(bm_handle.bm_y)*(uint64_t)(bm_handle.bm_x)*sizeof(unsigned char));
  fi->x = bm_handle.bm_x;
  fi->y = bm_handle.bm_y;
  di = dr = dg = db = 0.0;
@@ -419,7 +421,7 @@ int load_bmp_file(fileinfo* fi, BMPTag bm_handle, FILE* plik)
 	 return j;
  }
  free((void*)pixels);
- return 0;
+ return 1;
 }
 
 #ifdef USE_JPEG
@@ -460,7 +462,7 @@ void set_rows(int cur_row, JSAMPARRAY pixel_data, int width, unsigned long*** bi
 
 void jpeg_compute_pixels(unsigned char* pix, unsigned char* bits, int sx, int sy)
 {
- int i,j,k;
+ uint64_t i,j,k;
  
  for (i=0;i<sy;i++)
  for (j=0;j<sx;j++)
@@ -470,7 +472,7 @@ void jpeg_compute_pixels(unsigned char* pix, unsigned char* bits, int sx, int sy
 
 void init_pixels(unsigned char** pix, unsigned char* bits, int x, int y)
 {
- *pix = (unsigned char*)malloc((x*y*3)*sizeof(unsigned char));
+ *pix = (unsigned char*)malloc((uint64_t)x*(uint64_t)y*3*sizeof(unsigned char));
   jpeg_compute_pixels(*pix, bits, x, y);
 }
 
@@ -645,7 +647,7 @@ int load_jpeg_file(fileinfo* fi, FILE* plik)
  }
  fi->x = tex_x;
  fi->y = tex_y;
- pixels = (unsigned char*)malloc(3*tex_x*tex_y*sizeof(unsigned char));
+ pixels = (unsigned char*)malloc(3*(uint64_t)tex_x*(uint64_t)tex_y*sizeof(unsigned char));
  rcode = translate_jpeg_to_uchar_format(tex_data, fi, pixels);
  for (i=0;i<tex_y;i++)
    {
@@ -856,7 +858,8 @@ int process_file(fileinfo* fi, int num)
  if ((b != 'B' || m != 'M') && !skip_jpegin)  rcode = load_jpeg_file(fi, plik);
  else if (!skip_bmpin) rcode = load_bmp_file(fi, bm_handle, plik);
  fclose(plik);
- printf("Processed file (%d/%d): \"%s\"\n", fi->i, num, fi->fname);
+ if (rcode) printf("Processed file (%d/%d): \"%s\"\n", fi->i, num, fi->fname);
+ else printf("Error file (%d/%d): \"%s\"\n", fi->i, num, fi->fname);
  return rcode;
 }
 
@@ -996,9 +999,11 @@ void read_dbfile(fileinfo** fi)
 	     &((*fi)[i].b)
 	     ) != 8) 
  	{
-	    printf("Error reading element: %d/%ld\n", i, g_num);
-	    panic(HERE, "read g_num from DB");
-	}
+/*	    printf("Error reading element: %d/%ld\n", i, g_num);*/
+/*	    panic(HERE, "read g_num from DB");*/
+	    printf("Warning: cannot read element: %d/%ld\n", i, g_num);
+      (*fi)[i].missing = 1;
+  }
 
 /*  if ((*fi)[i].snap_x != (unsigned int)g_snap_x) panic(HERE, "snap_x and g_snap_x mismatch");*/
 /*  if ((*fi)[i].snap_y != (unsigned int)g_snap_y) panic(HERE, "snap_y and g_snap_y mismatch");*/
@@ -1034,7 +1039,7 @@ int load_bmp_pix(BMPTag bm_handle, FILE* plik, unsigned char** _pixels, unsigned
 	 return 0;
  }
  fseek(plik,bm_handle.offset,SEEK_SET);
- pixels = (unsigned char*)malloc(3*bm_handle.bm_y*bm_handle.bm_x*sizeof(unsigned char));
+ pixels = (unsigned char*)malloc(3*(uint64_t)(bm_handle.bm_y)*(uint64_t)(bm_handle.bm_x)*sizeof(unsigned char));
  for (i=0;i<bm_handle.bm_y;i++)  for (j=0;j<bm_handle.bm_x;j++)
     {
      fscanf(plik,"%c%c%c", &b,&g,&r);
@@ -1089,7 +1094,7 @@ int load_jpeg_pix(FILE* plik, unsigned char** _pixels, unsigned int* _x, unsigne
 	 printf("load_jpeg_texture: jpeg decompress error\n");
 	 return 0;
  }
- pixels = (unsigned char*)malloc(3*tex_x*tex_y*sizeof(unsigned char));
+ pixels = (unsigned char*)malloc(3*(uint64_t)tex_x*(uint64_t)tex_y*sizeof(unsigned char));
  rcode = translate_jpeg_to_uchar_format_pix(tex_data, tex_x, tex_y, pixels);
  for (i=0;i<tex_y;i++)
    {
@@ -1138,7 +1143,7 @@ int make_scale(unsigned char* pixels)
 	ny = g_img_y / g_part_y;
 /*	pow_check(&nx);*/
 /*	pow_check(&ny);*/
-    spix = (unsigned char*)malloc(3*ny*nx*sizeof(unsigned char));
+    spix = (unsigned char*)malloc(3*(uint64_t)ny*(uint64_t)nx*sizeof(unsigned char));
 	
 	for (i=0;i<ny;i++) 
 	{
@@ -1350,6 +1355,7 @@ int get_nearest_color(fileinfo* fi, unsigned char r, unsigned char g, unsigned c
 
 	for (i=0;i<g_num;i++)
 	{
+    if (fi[i].missing) continue;
 		dist = rgb_distance(&fi[i], r, g, b);
 		if (dist == mindist)
 		{
@@ -1420,7 +1426,7 @@ int make_scale_pix(unsigned char* pixels, unsigned int curr_x, int unsigned curr
 	nx = g_snap_x;
 	ny = g_snap_y;
 
-    *spix = (unsigned char*)malloc(3*ny*nx*sizeof(unsigned char));
+    *spix = (unsigned char*)malloc(3*(uint64_t)ny*(uint64_t)nx*sizeof(unsigned char));
 	if (!(*spix)) panic(HERE, "malloc *spix");
 	
 	for (i=0;i<ny;i++) 
@@ -1555,15 +1561,15 @@ int prefetch_pixmaps(fileinfo* fi)
 int generate_outimg(fileinfo* fi)
 {
 	unsigned char* spix;
-	unsigned int nx, ny, i, j, xidx, yidx;
-	int k, l;
+	uint64_t nx, ny, i, j, xidx, yidx;
+	uint64_t k, l;
 	unsigned char r, g, b;
 
 
 	nx = g_img_sx * g_snap_x;
 	ny = g_img_sy * g_snap_y;
 	printf("Watchout! final malloc ALL out pixels, needs %.0f Mb memeory!\n", ((double)nx * (double)ny * 3.)/(1024.*1024.));
-    spix = (unsigned char*)malloc(3*ny*nx*sizeof(unsigned char));
+    spix = (unsigned char*)malloc(3*(uint64_t)ny*(uint64_t)nx*sizeof(unsigned char));
 	
 	for (i=0;i<g_img_sx;i++) 
 	{
@@ -1575,11 +1581,11 @@ int generate_outimg(fileinfo* fi)
 			{
 				if (!fi[g_img_idx[i][j]].processed)
 				{
-					printf("Pixmap[%d][%d], idx[%d] ==> fi[%d] is not processed - this is fatal\n", 
+					printf("Pixmap[%ld][%ld], idx[%d] ==> fi[%d] is not processed - this is fatal\n", 
 						i, j, g_img_idx[i][j], g_img_idx[i][j]);
 					panic(HERE, "g_img_idx not processed");
 				}
-				get_color_uchar(fi[g_img_idx[i][j]].pixels, g_snap_y, k, l, &r, &g, &b);
+				get_color_uchar(fi[g_img_idx[i][j]].pixels, (uint64_t)g_snap_y, k, l, &r, &g, &b);
 				set_color_uchar(spix, ny, yidx + k, xidx + l, r, g, b);	
 			}
 		}
